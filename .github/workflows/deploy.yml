@@ -1,0 +1,52 @@
+name: Deploy client
+on:
+  release:
+    types: [published]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [15.x]
+    steps:
+    - uses: actions/checkout@v1
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: Install Packages
+      uses: borales/actions-yarn@v2.3.0
+      with:
+        cmd: install
+    - name: Build
+      uses: borales/actions-yarn@v2.3.0
+      env:
+        CI: false
+      with:
+        cmd: build
+    - name: Compress folder
+      uses: master-atul/tar-action@v1.0.2
+      with:
+        command: c
+        cwd: build
+        files: |
+          .
+        outPath: client.tar.gz
+    - name: Transfering the archive
+      uses: Pendect/action-rsyncer@v1.1.0
+      env:
+        DEPLOY_KEY: ${{ secrets.SERVER_SSH_KEY }}
+      with:
+        flags: '-avzr --delete -O --no-perms --progress'
+        options: ''
+        ssh_options: "-p ${{ secrets.REMOTE_PORT }}"
+        src: 'client.tar.gz'
+        dest: "${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:~"
+    - name: Install on server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        port: ${{ secrets.REMOTE_PORT }}
+        script: sudo rm -rf /var/www/html/mailer_backup && sudo mv /var/www/html/mailer /var/www/html/mailer_backup && sudo mkdir /var/www/html/mailer && sudo tar xf client.tar.gz -C /var/www/html/mailer/ && rm -f client.tar.gz && sudo chown -R www-data:www-data /var/www/html/mailer && sudo chmod -R 755 /var/www/html/mailer

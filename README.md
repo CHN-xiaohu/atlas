@@ -1,0 +1,1 @@
+Atlas is an internal CRM solution made individually for Globus.
